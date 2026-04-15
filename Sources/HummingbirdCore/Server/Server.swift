@@ -113,22 +113,24 @@ public actor Server<ChildChannel: ServerChildChannel>: Service {
                         await onServerRunning?(asyncChannel.channel)
 
                         let logger = self.logger
-                        var shouldExecuteAgain = true
                         // We can now start to handle our work.
                         await withDiscardingTaskGroup { group in
-                            while shouldExecuteAgain {
-                                shouldExecuteAgain = false
-                                do {
-                                    try await asyncChannel.executeThenClose { inbound in
-                                        for try await childChannel in inbound {
-                                            group.addTask {
-                                                await childChannelSetup.handle(value: childChannel, logger: logger)
-                                            }
+                            do {
+                                try await asyncChannel.executeThenClose { inbound in
+                                    for try await childChannel in inbound {
+                                        group.addTask {
+                                            await childChannelSetup.handle(value: childChannel, logger: logger)
                                         }
                                     }
-                                } catch {
-                                    logger.error("Waiting on child channel: \(error)")
-                                    shouldExecuteAgain = true
+                                }
+                            } catch {
+                                logger.error("Waiting on child channel: \(error)")
+                                Task {
+                                    do {
+                                        try await self.shutdownGracefully()
+                                    } catch {
+                                        self.logger.error("Server shutdown error: \(error)")
+                                    }
                                 }
                             }
                         }
