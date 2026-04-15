@@ -125,6 +125,13 @@ public actor Server<ChildChannel: ServerChildChannel>: Service {
                                 }
                             } catch {
                                 logger.error("Waiting on child channel: \(error)")
+                                Task {
+                                    do {
+                                        try await self.shutdownGracefully()
+                                    } catch {
+                                        self.logger.error("Server shutdown error: \(error)")
+                                    }
+                                }
                             }
                         }
                     } onGracefulShutdown: {
